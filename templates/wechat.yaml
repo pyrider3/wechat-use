@@ -1,0 +1,17 @@
+name: codex-background-wechat
+compositor: labwc
+screen: "1280x900"
+input_backend: hybrid
+headless: true
+clipboard_bridge: false
+keyboard_layout: us
+renderer: pixman
+timeouts:
+  app_render: 8
+app:
+  command: @HOME@/.config/wbox-mcp/wechat/start-wechat
+  env:
+    QT_QPA_PLATFORM: xcb
+    XMODIFIERS: '@im=none'
+    GTK_IM_MODULE: simple
+    QT_IM_MODULE: simple

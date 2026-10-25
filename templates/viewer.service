@@ -1,0 +1,5 @@
+[Unit]
+Description=Local viewer server for the isolated WeChat desktop
+[Service]
+ExecStart=/usr/bin/python3 @INSTALL@/viewer-server.py
+Restart=no

@@ -1,0 +1,9 @@
+[Unit]
+Description=Silence audio only from the isolated WeChat profile
+After=pipewire-pulse.service
+[Service]
+ExecStart=/usr/bin/python3 @INSTALL@/silent-audio.py
+Restart=on-failure
+RestartSec=2
+[Install]
+WantedBy=default.target

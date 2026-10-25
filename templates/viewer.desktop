@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=后台微信
+Comment=查看和操作独立桌面；关闭窗口后微信继续后台运行
+Exec=@HOME@/.local/bin/background-wechat-viewer
+Icon=wechat
+Terminal=false
+Categories=Network;InstantMessaging;
+Keywords=微信;后台;独立桌面;wechat;viewer;
+StartupWMClass=Vncviewer
