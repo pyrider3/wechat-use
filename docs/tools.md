@@ -163,3 +163,12 @@ verify_existing:true 只用于 dry_run：如果历史已有相同内容给相同
 搜索词通过实际输入框图像核对，避免 Ctrl+V 尚未处理时改写剪贴板探测值。标题优先使用已有高置信 OCR，小区域按钮/名单及复杂预览用独立本地 OCR。保留精确接收人、预览和结果检查。需要 reviewed layout.forward、layout.search 以及 --group-ocr 可选环境；forward-layout.example.json 仅为本机已验证布局示例，换布局必须重新观察校准，不能直接照搬。
 
 该路径不替代原文字发送工具，不修改消息或群设置；本机记录在 ~/.local/state/wbox-wechat/forward-send，权限 0700/0600。失败后可能保留准备界面供观察；先看返回截图再取消，不能盲目点发送。
+
+## 接收人 AI 看图交接
+
+普通联系人发送器、搜索/最近联系人/元素批次遇到接收人 OCR 问题，返回 `awaiting_ai_visual_review`、整屏、2 倍标题图、120 秒一次性 token 与 remaining。返回不是发送成功；当前模型必须立即看图复核并继续。
+
+- `prepare_visual_contact_send {recipient,text,operation_id}`：只取图、不发送。供 AI 视觉导航/消歧后重新取证。
+- `resume_visual_contact_send {token,confirmed_recipient,visual_evidence}`：AI 实际读图确认后调用；原接收人、正文、operation_id 不变，检查标题像素、焦点、布局，再走原发送器。提交前保存 sending，Enter 一次，发送后仍检查气泡、空草稿和失败标记。成功自动接续原批次队列。
+
+凭证仅在同一 MCP 连接内有效，一次性消耗；过期、布局/标题变化需重新 prepare 并读图。重新 prepare 的队列需模型用原编号继续。已有授权不需再次问用户；无法辨认或重名才澄清。pending/uncertain 不可重发。凭证只能证明确认对应同一界面，不能独立证明模型看过图；视觉身份判断属于调用方模型责任。不覆盖转发选择器/群人数/正文结果核验。

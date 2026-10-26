@@ -55,7 +55,7 @@ def copy_draft(proxy):
  r=proxy.call('clipboard_read',{});text=next(c['text'] for c in r['content'] if c['type']=='text')
  proxy.call('key',{'shortcut':'ctrl+End'})
  return '' if text==marker else text
-def send(proxy,args,regions=None,recipient="文件传输助手"):
+def send(proxy,args,regions=None,recipient="文件传输助手",visual_guard=None):
  if not isinstance(recipient,str) or not recipient.strip() or len(recipient)>80 or any(ord(c)<32 for c in recipient):raise ValueError("invalid_recipient")
  recipient=unicodedata.normalize("NFC",recipient)
  recipient_hash=hashlib.sha256(recipient.encode()).hexdigest()
@@ -81,6 +81,8 @@ def send(proxy,args,regions=None,recipient="文件传输助手"):
    full=proxy.call('screenshot',{});im=image(full)
    if list(im.size)!=layout['size']:raise ValueError('layout_changed: recalibrate from a fresh screenshot')
   def header():
+   if visual_guard is not None:
+    visual_guard();return
    if regions:
     regions.check();words,confidence=regions.header()
    else:words,confidence=ocr(image(proxy.call('screenshot',{'region':layout['header']})))
@@ -89,8 +91,10 @@ def send(proxy,args,regions=None,recipient="文件传输助手"):
   before=last_bubble(image(proxy.call('screenshot',{'region':layout['messages']})))
   if before and norm(ocr(before[1],6)[0])==norm(text):raise ValueError('same_last_message: inspect instead of possibly resending')
   proxy.call('click',{'x':layout['input'][0],'y':layout['input'][1]})
-  if copy_draft(proxy):raise ValueError('draft_not_empty: nothing replaced or sent')
-  proxy.call('clipboard_write',{'text':text});proxy.call('key',{'shortcut':'ctrl+v'});time.sleep(.08)
+  existing=copy_draft(proxy)
+  if existing and not (visual_guard is not None and existing==text):raise ValueError('draft_not_empty: nothing replaced or sent')
+  if not existing:
+   proxy.call('clipboard_write',{'text':text});proxy.call('key',{'shortcut':'ctrl+v'});time.sleep(.08)
   if copy_draft(proxy)!=text:raise ValueError('draft_mismatch: nothing sent; inspect draft')
   proxy.call('clipboard_write',{'text':text})
   if proxy.focus()!=focus:raise ValueError('focus_changed: nothing sent')

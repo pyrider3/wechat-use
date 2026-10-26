@@ -25,6 +25,7 @@ def targets(home, prefix):
         'wechat_search.py': (prefix / 'wechat_search.py', False),
         'wechat_elements.py': (prefix / 'wechat_elements.py', False),
         'wechat_groups.py': (prefix / 'wechat_groups.py', False),
+        'wechat_visual.py': (prefix / 'wechat_visual.py', False),
         'wechat_forward.py': (prefix / 'wechat_forward.py', False),
         'group_ocr_worker.py': (prefix / 'group_ocr_worker.py', False),
         'silent-audio.py': (prefix / 'silent-audio.py', True),

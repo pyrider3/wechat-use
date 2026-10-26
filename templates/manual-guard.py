@@ -23,6 +23,10 @@ EXTRA.append({'name':'search_open_contact','description':'Search and open an exa
 EXTRA.append({'name':'inspect_ui_elements','description':'Optional experimental read-only text element map with OCR names, confidence, bounds, centers and frame ID. Main chat only; normal output contains no image. Layout/unknown popup/low-confidence title returns screenshot for visual review. Does not click or send; existing guarded workflows remain preferred.','inputSchema':{'type':'object','properties':{},'additionalProperties':False}})
 EXTRA.append({'name':'group_member_counts','description':'Read-only local batch: search group-name keyword, enumerate complete local Groups section, reopen each fresh result and verify exact group title/member count twice. No messages or group edits. Returns text table data; uncertain/truncated/duplicate results return partial data and fresh screenshot. Requires optional local group OCR runtime and group_header calibration.','inputSchema':{'type':'object','properties':{'query':{'type':'string','minLength':1,'maxLength':80},'max_groups':{'type':'integer','minimum':1,'maximum':10}},'required':['query'],'additionalProperties':False}})
 EXTRA.append({'name':'forward_latest_two','description':'Guarded local forwarding of File Transfer Assistant latest TWO short outgoing plain-text bubbles to 2-5 authorized unique contacts. Default dry_run prepares, verifies full message preview and exact recipients, then cancels without sending. Send mode rejects previously forwarded identical content/recipients and submits once with durable anti-resend journal; verifies each destination. Unsupported media/layout/ambiguity stops with screenshot. Requires reviewed forward calibration and optional local OCR.','inputSchema':{'type':'object','properties':{'recipients':{'type':'array','minItems':2,'maxItems':5,'uniqueItems':True,'items':{'type':'string','minLength':1,'maxLength':80}},'operation_id':{'type':'string','pattern':'^[A-Za-z0-9_-]{8,80}$'},'dry_run':{'type':'boolean','default':True},'verify_existing':{'type':'boolean','default':False}},'required':['recipients','operation_id'],'additionalProperties':False}})
+EXTRA.extend([
+ {'name':'prepare_visual_contact_send','description':'After AI visually navigates to an authorized contact, capture a fresh full screenshot and recipient-title crop with a one-use 120-second review token. Does NOT send. AI must read the actual images and disambiguate identity before resume_visual_contact_send. Keeps original operation_id.','inputSchema':next(t['inputSchema'] for t in EXTRA if t['name']=='send_partitioned_to_contact')},
+ {'name':'resume_visual_contact_send','description':'Only after YOU the AI have inspected the token screenshot and confirmed exact recipient identity, resume authorized send once with original operation_id and durable anti-resend checks. Supply visually confirmed recipient and evidence. Rejects changed header/window/layout or expired token. If confirmed, automatically continues remaining batch. SEND_UNCERTAIN never resubmits.','inputSchema':{'type':'object','properties':{'token':{'type':'string'},'confirmed_recipient':{'type':'string'},'visual_evidence':{'type':'string','minLength':8}},'required':['token','confirmed_recipient','visual_evidence'],'additionalProperties':False}}
+])
 OBSERVE.add('inspect_regions')
 class Proxy:
  def __init__(self,command):
@@ -68,9 +72,13 @@ class Proxy:
   return hashlib.sha256(base64.b64decode(data)).hexdigest()
  def fast(self,name,args):
   if name in {'inspect_ui_elements','send_elements_workflow'} and ELEMENTS_DISABLED.exists():return {"isError":True,"content":[{"type":"text","text":"element_map_disabled: use inspect_regions or existing workflows"}]}
-  if name in {'calibrate_regions','inspect_regions','send_partitioned_to_file_helper','send_partitioned_to_contact','send_contacts_workflow','search_contacts_workflow','search_open_contact','inspect_ui_elements','send_elements_workflow','group_member_counts','forward_latest_two'}:
+  if name in {'calibrate_regions','inspect_regions','send_partitioned_to_file_helper','send_partitioned_to_contact','send_contacts_workflow','search_contacts_workflow','search_open_contact','inspect_ui_elements','send_elements_workflow','group_member_counts','forward_latest_two','prepare_visual_contact_send','resume_visual_contact_send'}:
    from wechat_regions import Regions
    if not hasattr(self,'regions'):self.regions=Regions(self)
+   if name in {'prepare_visual_contact_send','resume_visual_contact_send'}:
+    from wechat_visual import prepare,resume
+    try:return prepare(self.regions,args) if name=='prepare_visual_contact_send' else resume(self.regions,args)
+    except Exception as e:return self.regions.fallback(e)
    if name=="forward_latest_two":
     from wechat_forward import Forwarder
     if not hasattr(self.regions,'forwarder'):self.regions.forwarder=Forwarder(self.regions)
@@ -93,7 +101,13 @@ class Proxy:
    return self.regions.run(name,args)
   if name in {'send_to_file_helper','send_to_contact'}:
    from auto_file_helper import send
-   return send(self,args,recipient=args.get("recipient","") if name=="send_to_contact" else "文件传输助手")
+   try:return send(self,args,recipient=args.get("recipient","") if name=="send_to_contact" else "文件传输助手")
+   except Exception as e:
+    from wechat_visual import eligible,prepare
+    if name!='send_to_contact' or not eligible(e):raise
+    from wechat_regions import Regions
+    if not hasattr(self,'regions'):self.regions=Regions(self)
+    return prepare(self.regions,args,reason=str(e))
   if name=='paste_and_capture':
    if not isinstance(args.get('text'),str) or not 0<len(args['text'])<=16000:raise ValueError('invalid text')
    region=args.get('guard_region','')
@@ -144,7 +158,7 @@ class Proxy:
     with (RUNTIME/'wbox-wechat-action.lock').open('a') as action:
      try:fcntl.flock(action,fcntl.LOCK_EX|fcntl.LOCK_NB)
      except BlockingIOError:raise RuntimeError('automation_busy: another agent is executing an action')
-     result=self.fast(name,params.get('arguments',{})) if name in {'paste_and_capture','send_prepared','send_to_file_helper','send_to_contact','calibrate_regions','send_partitioned_to_file_helper','send_partitioned_to_contact','send_contacts_workflow','search_contacts_workflow','search_open_contact','inspect_ui_elements','send_elements_workflow','group_member_counts','forward_latest_two'} else self.rpc(method,params)
+     result=self.fast(name,params.get('arguments',{})) if name in {'paste_and_capture','send_prepared','send_to_file_helper','send_to_contact','calibrate_regions','send_partitioned_to_file_helper','send_partitioned_to_contact','send_contacts_workflow','search_contacts_workflow','search_open_contact','inspect_ui_elements','send_elements_workflow','group_member_counts','forward_latest_two','prepare_visual_contact_send','resume_visual_contact_send'} else self.rpc(method,params)
    else:
     result=self.fast(name,params.get('arguments',{})) if method=='tools/call' and name=='inspect_regions' else self.rpc(method,params)
     if method=='tools/list':result['tools'].extend(t for t in EXTRA if t['name'] not in {'inspect_ui_elements','send_elements_workflow'} or not ELEMENTS_DISABLED.exists())

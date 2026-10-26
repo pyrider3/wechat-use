@@ -114,6 +114,13 @@ def run(regions,args):
    if result.get('isError') or record.get('status')!='ui_confirmed':raise ValueError('previous_send_uncertain: batch stopped')
   return {'content':[{'type':'text','text':json.dumps({'status':'ui_confirmed','completed':completed,'elapsed_ms':round((time.perf_counter()-start)*1000,2)},ensure_ascii=False)}]}
  except Exception as error:
+  from wechat_visual import eligible,prepare
+  if current and eligible(error):
+   try:
+    result=prepare(regions,{'recipient':item['recipient'],'text':item['text'],'operation_id':item['operation_id']},remaining=items[items.index(item)+1:],mode={'_search':args.get('_search',False),'_elements':args.get('_elements',False)},reason=str(error))
+    result['content'].insert(0,{'type':'text','text':json.dumps({'completed':completed,'stopped_recipient':current,'submitted':False},ensure_ascii=False)})
+    return result
+   except Exception as review_error:error=review_error
   result=regions.fallback(error)
   result['content'].insert(0,{'type':'text','text':json.dumps({'status':'workflow_stopped','completed':completed,'stopped_recipient':current,'stopped_stages':stages,'stopped_elapsed_ms':round((time.perf_counter()-one)*1000,2),'elapsed_ms':round((time.perf_counter()-start)*1000,2),'instruction':'No automatic retries. Inspect error and screenshot; completed messages must not be resent.'},ensure_ascii=False)})
   return result

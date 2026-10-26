@@ -126,4 +126,9 @@ class Regions:
    if not PROFILE.exists():raise LayoutError('needs_calibration')
    self.check()
    return auto.send(self.proxy,args,regions=self,recipient=args.get("recipient","") if name=="send_partitioned_to_contact" else "文件传输助手")
-  except Exception as error:return self.fallback(error)
+  except Exception as error:
+   from wechat_visual import eligible,prepare
+   if name=='send_partitioned_to_contact' and eligible(error):
+    try:return prepare(self,args,reason=str(error))
+    except Exception as review_error:return self.fallback(review_error)
+   return self.fallback(error)
