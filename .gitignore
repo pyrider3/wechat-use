@@ -18,3 +18,5 @@ auto-layout.json
 timings.jsonl
 backups/
 auto-send/
+forward-send/
+group-ocr-venv/

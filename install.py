@@ -21,6 +21,12 @@ def targets(home, prefix):
         'manual-guard.py': (prefix / 'manual-guard.py', True),
         'auto_file_helper.py': (prefix / 'auto_file_helper.py', False),
         'wechat_regions.py': (prefix / 'wechat_regions.py', False),
+        'wechat_workflow.py': (prefix / 'wechat_workflow.py', False),
+        'wechat_search.py': (prefix / 'wechat_search.py', False),
+        'wechat_elements.py': (prefix / 'wechat_elements.py', False),
+        'wechat_groups.py': (prefix / 'wechat_groups.py', False),
+        'wechat_forward.py': (prefix / 'wechat_forward.py', False),
+        'group_ocr_worker.py': (prefix / 'group_ocr_worker.py', False),
         'silent-audio.py': (prefix / 'silent-audio.py', True),
         'start-wechat.sh': (home / '.config/wbox-mcp/wechat/start-wechat', True),
         'wbox-mcp.sh': (home / '.local/bin/wbox-mcp', True),
@@ -50,6 +56,7 @@ def main():
     ap.add_argument('--update', action='store_true', help='Update an existing managed installation; preserve config, profiles and credentials')
     ap.add_argument('--prefix', type=pathlib.Path, default=pathlib.Path.home() / '.local/share/wbox-mcp')
     ap.add_argument('--no-register', action='store_true', help='Do not register MCPs in Codex/Pi')
+    ap.add_argument('--group-ocr', action='store_true', help='Install isolated optional RapidOCR backend for group lookups and forwarding')
     args = ap.parse_args()
     home = pathlib.Path.home()
     prefix = args.prefix.expanduser().resolve()
@@ -98,6 +105,9 @@ def main():
         run('uv', 'venv', prefix / '.venv')
         run('uv', 'pip', 'install', '--python', prefix / '.venv/bin/python', source)
     run('uv', 'pip', 'install', '--python', prefix / '.venv/bin/python', 'Pillow>=10,<14')
+    if args.group_ocr:
+        run('uv', 'venv', '--python', '3.12', prefix / 'group-ocr-venv')
+        run('uv', 'pip', 'install', '--python', prefix / 'group-ocr-venv/bin/python', 'rapidocr==3.10.0', 'onnxruntime==1.31.0')
     for name, digest in MODELS.items():
         ensure_model(prefix / 'tessdata', name, digest)
     backup = prefix / 'backups' / (time.strftime('%Y%m%d-%H%M%S') + '-' + secrets.token_hex(3)) if args.update else None
@@ -117,6 +127,7 @@ def main():
     write('skills/background-wechat/SKILL.md', skill)
     example = home / '.config/wbox-mcp/wechat/auto-layout.example.json'
     write('templates/auto-layout.example.json', example)
+    write('templates/forward-layout.example.json', home / '.config/wbox-mcp/wechat/forward-layout.example.json')
     if not args.update:
         write('templates/wechat.yaml', config)
         (prefix / 'wechat-profile').mkdir(mode=0o700)

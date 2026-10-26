@@ -52,6 +52,14 @@ class Regions:
    self.ocr_calls+=1;self.cache[key]=auto.ocr(im,psm)
    if len(self.cache)>80:self.cache={key:self.cache[key]}
   return self.cache[key]
+ def recognize_message(self,im):
+  key=(hashlib.sha256(im.tobytes()).hexdigest(),im.size,'message')
+  if key not in self.cache:
+   words,confidence,method=auto.message_ocr(im)
+   self.ocr_calls+=1 if method=='original' else 4
+   if len(self.cache)>80:self.cache={}
+   self.cache[key]=(words,confidence)
+  return self.cache[key]
  def calibrate(self,layout=None):
   inv=inventory();self.proxy.focus()
   if len(inv['windows'])!=1 or inv['windows'][0]['override_redirect']:raise LayoutError('popup_or_extra_window')
@@ -96,7 +104,7 @@ class Regions:
   bubble=auto.last_bubble(messages)
   with ThreadPoolExecutor(max_workers=3) as pool:
    title_task=pool.submit(self.recognize,header_im,7);draft_task=pool.submit(self.recognize,draft,6)
-   message_task=pool.submit(self.recognize,bubble[1],6) if bubble else None
+   message_task=pool.submit(self.recognize_message,bubble[1]) if bubble else None
    title,tc=title_task.result();draft_text,dc=draft_task.result();latest,mc=message_task.result() if message_task else ('',0)
   if not title or tc<70:raise LayoutError('title_unreadable')
   result={'status':'ready','chat':title,'chat_confidence':tc,'draft_ocr':draft_text,'latest_outgoing_ocr':latest if mc>=75 else None,'latest_outgoing_confidence':mc,'latest_outgoing_reliable':bool(latest and mc>=75),'popup':False,'layout':'valid'}
@@ -117,5 +125,5 @@ class Regions:
    if name=='inspect_regions':return {'content':[{'type':'text','text':json.dumps(self.inspect(args.get('contacts',False)),ensure_ascii=False)}]}
    if not PROFILE.exists():raise LayoutError('needs_calibration')
    self.check()
-   return auto.send(self.proxy,args,regions=self)
+   return auto.send(self.proxy,args,regions=self,recipient=args.get("recipient","") if name=="send_partitioned_to_contact" else "文件传输助手")
   except Exception as error:return self.fallback(error)

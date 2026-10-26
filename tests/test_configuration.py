@@ -4,6 +4,7 @@ spec=importlib.util.spec_from_file_location('installer',ROOT/'install.py');insta
 class ConfigurationTests(unittest.TestCase):
  def test_rendered_programs(self):
   for p in (ROOT/'templates').iterdir():
+   if not p.is_file():continue
    rendered=installer.render(p.read_text(),'/tmp/example-user','/tmp/example-install','/tmp/example-runtime')
    self.assertNotIn('@HOME@',rendered);self.assertNotIn('@INSTALL@',rendered);self.assertNotIn('@RUNTIME@',rendered)
    if p.suffix=='.py':compile(rendered,str(p),'exec')
@@ -17,7 +18,7 @@ class ConfigurationTests(unittest.TestCase):
     fcntl.flock(lock,fcntl.LOCK_EX)
     requests=[{'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'key'}},{'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'screenshot'}}]
     # Keep stdin open until both responses arrive so the proxy can drain the upstream.
-    p=subprocess.Popen(['python3',str(script)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
+    p=subprocess.Popen(['python3',str(script)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,env={**os.environ,'XDG_RUNTIME_DIR':str(runtime)})
     try:
      for r in requests:p.stdin.write(json.dumps(r)+'\n')
      p.stdin.flush();results={}

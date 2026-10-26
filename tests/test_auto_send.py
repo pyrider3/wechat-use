@@ -36,4 +36,25 @@ class AutoTests(unittest.TestCase):
    m.STATE.mkdir();op='test-uncertain-01';text='测试';p=m.STATE/(m.hashlib.sha256(op.encode()).hexdigest()+'.json');p.write_text(json.dumps({'status':'send_uncertain','text_hash':m.hashlib.sha256(text.encode()).hexdigest()}))
    proxy=Fake();r=m.send(proxy,{'text':text,'operation_id':op})
    self.assertFalse(proxy.calls);self.assertTrue(r['isError'])
+class ContactTests(unittest.TestCase):
+ setup_state=AutoTests.setup_state
+ def test_contact_mismatch_no_mutation(self):
+  with tempfile.TemporaryDirectory() as t,self.setup_state(t),patch.object(m,'image',return_value=Image.new('RGB',(1280,900))),patch.object(m,'ocr',return_value=('another_contact',99)):
+   p=Fake()
+   with self.assertRaisesRegex(ValueError,'recipient_unverified'):m.send(p,{'text':'测试','operation_id':'contact-wrong-01'},recipient='fixture_contact')
+   self.assertTrue(all(n=='screenshot' for n,a in p.calls))
+ def test_recipient_match_is_case_sensitive(self):
+  with tempfile.TemporaryDirectory() as t,self.setup_state(t),patch.object(m,'image',return_value=Image.new('RGB',(1280,900))),patch.object(m,'ocr',return_value=('Fixture',99)):
+   with self.assertRaisesRegex(ValueError,'recipient_unverified'):m.send(Fake(),{'text':'测试','operation_id':'contact-case-01'},recipient='fixture')
+ def test_cross_recipient_operation_rejected(self):
+  with tempfile.TemporaryDirectory() as t,self.setup_state(t):
+   m.STATE.mkdir();op='contact-bound-01';text='测试';p=m.STATE/(m.hashlib.sha256(op.encode()).hexdigest()+'.json');p.write_text(json.dumps({'status':'ui_confirmed','text_hash':m.hashlib.sha256(text.encode()).hexdigest(),'recipient_hash':m.hashlib.sha256(b'first').hexdigest()}))
+   proxy=Fake()
+   with self.assertRaisesRegex(ValueError,'different recipient'):m.send(proxy,{'text':text,'operation_id':op},recipient='second')
+   self.assertFalse(proxy.calls)
+ def test_matching_contact_preserves_existing_draft(self):
+  with tempfile.TemporaryDirectory() as t,self.setup_state(t),patch.object(m,'image',return_value=Image.new('RGB',(1280,900))),patch.object(m,'ocr',return_value=('fixture_contact',99)),patch.object(m,'last_bubble',return_value=None),patch.object(m,'copy_draft',return_value='existing draft'):
+   p=Fake()
+   with self.assertRaisesRegex(ValueError,'draft_not_empty'):m.send(p,{'text':'测试','operation_id':'contact-draft-01'},recipient='fixture_contact')
+   self.assertFalse(any(n=='key' and a.get('shortcut')=='Return' for n,a in p.calls))
 if __name__=='__main__':unittest.main()
