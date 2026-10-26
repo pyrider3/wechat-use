@@ -12,3 +12,9 @@ screenshots/
 *.png
 *.jpg
 *.log
+*.traineddata
+region-profile.json
+auto-layout.json
+timings.jsonl
+backups/
+auto-send/

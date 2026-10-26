@@ -8,7 +8,7 @@ class ConfigurationTests(unittest.TestCase):
    self.assertNotIn('@HOME@',rendered);self.assertNotIn('@INSTALL@',rendered);self.assertNotIn('@RUNTIME@',rendered)
    if p.suffix=='.py':compile(rendered,str(p),'exec')
    if p.suffix=='.sh':subprocess.run(['sh','-n'],input=rendered,text=True,check=True)
- def test_manual_guard_blocks_input_but_allows_observation(self):
+ def test_viewer_does_not_block_input_or_observation(self):
   with tempfile.TemporaryDirectory() as t:
    base=pathlib.Path(t);runtime=base/'runtime';runtime.mkdir()
    fake=base/'wbox-mcp-direct';fake.write_text('#!/usr/bin/python3\nimport sys,json\nfor line in sys.stdin:\n r=json.loads(line);print(json.dumps({"jsonrpc":"2.0","id":r["id"],"result":{"content":[{"type":"text","text":"forwarded"}]}}),flush=True)\n');fake.chmod(0o700)
@@ -23,7 +23,7 @@ class ConfigurationTests(unittest.TestCase):
      p.stdin.flush();results={}
      for _ in requests:
       r=json.loads(p.stdout.readline());results[r['id']]=r['result']
-     self.assertTrue(results[1]['isError']);self.assertIn('manual_control_active',results[1]['content'][0]['text'])
+     self.assertFalse(results[1].get('isError'));self.assertEqual(results[1]['content'][0]['text'],'forwarded')
      self.assertEqual(results[2]['content'][0]['text'],'forwarded')
     finally:p.stdin.close();p.wait(timeout=5);p.stdout.close()
 if __name__=='__main__':unittest.main()

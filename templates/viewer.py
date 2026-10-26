@@ -1,7 +1,7 @@
 #!/usr/bin/python3
-import fcntl,json,os,pathlib,socket,subprocess,sys,time
+import fcntl,json,os,pathlib,socket,subprocess,sys,time,shutil
 runtime=pathlib.Path('@RUNTIME@')
-lock=(runtime/'wbox-wechat-manual.lock').open('w')
+lock=(runtime/'wbox-wechat-viewer-instance.lock').open('w')
 try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
 except BlockingIOError:
  subprocess.run(['notify-send','后台微信','查看器已经打开，请切换到“后台微信 · 独立桌面”窗口。']);sys.exit(0)
@@ -22,5 +22,5 @@ marker.write_text(str(os.getpid()))
 try:
  env=os.environ.copy()
  env['LD_LIBRARY_PATH']='@INSTALL@/runtime/usr/lib'
- subprocess.run(['@INSTALL@/runtime/usr/bin/vncviewer','-SecurityTypes','VncAuth','-PasswordFile','@HOME@/.config/wbox-mcp/viewer/passwd','-RemoteResize=0','-AcceptClipboard=0','-SendClipboard=0','-SendPrimary=0','-SetPrimary=0','127.0.0.1::15927'],env=env)
+ subprocess.run([shutil.which('vncviewer') or '@INSTALL@/runtime/usr/bin/vncviewer','-SecurityTypes','VncAuth','-PasswordFile','@HOME@/.config/wbox-mcp/viewer/passwd','-RemoteResize=1','-AcceptClipboard=0','-SendClipboard=0','-SendPrimary=0','-SetPrimary=0','127.0.0.1::15927'],env=env)
 finally:marker.unlink(missing_ok=True)
