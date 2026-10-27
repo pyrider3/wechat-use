@@ -161,3 +161,7 @@ pi mcp remove wbox-wechat    # 如已注册
 ### 接收人看图兜底
 
 普通联系人短文字发送在标题 OCR 失败时自动返回整屏、放大标题和一次性凭证，交给当前 Codex/Pi 模型看图。AI 确认身份后调用 `resume_visual_contact_send`，按原请求编号继续并处理批次剩余项；标题/窗口/布局变化则需重新看图。保留草稿核验和持久防重发，已提交但不确定的消息不会重发。看图不是后台另接视觉 API；需重连 MCP / Pi `/reload` 加载新工具和技能。当前不扩展转发选择器或发送后正文的视觉确认。
+
+## 分辨率变化后恢复快速流程
+
+屏幕尺寸或主窗口几何变化会返回 `layout_recalibration_required` 和新截图、actual_size。批次另外返回 `workflow_awaiting_calibration`、completed、pending_messages、resume_tool。当前 AI 按新图提交 `calibrate_regions {layout}`，再用 inspect_regions 验证，继续原批次与原请求编号；不调整用户分辨率，也不让整批长期退回逐步截图。新区域需按当前窗口推断，不能盲目缩放或携带未经核对的搜索/群/转发子布局。弹窗或未知遮挡仍需先解决；发送不确定仍禁止重发。恢复依赖宿主 AI 执行图像复核与后续调用，不是服务器内置视觉推断。

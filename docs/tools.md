@@ -172,3 +172,7 @@ verify_existing:true 只用于 dry_run：如果历史已有相同内容给相同
 - `resume_visual_contact_send {token,confirmed_recipient,visual_evidence}`：AI 实际读图确认后调用；原接收人、正文、operation_id 不变，检查标题像素、焦点、布局，再走原发送器。提交前保存 sending，Enter 一次，发送后仍检查气泡、空草稿和失败标记。成功自动接续原批次队列。
 
 凭证仅在同一 MCP 连接内有效，一次性消耗；过期、布局/标题变化需重新 prepare 并读图。重新 prepare 的队列需模型用原编号继续。已有授权不需再次问用户；无法辨认或重名才澄清。pending/uncertain 不可重发。凭证只能证明确认对应同一界面，不能独立证明模型看过图；视觉身份判断属于调用方模型责任。不覆盖转发选择器/群人数/正文结果核验。
+
+## 分辨率变化后恢复快速流程
+
+屏幕尺寸或主窗口几何变化会返回 `layout_recalibration_required` 和新截图、actual_size。批次另外返回 `workflow_awaiting_calibration`、completed、pending_messages、resume_tool。当前 AI 按新图提交 `calibrate_regions {layout}`，再用 inspect_regions 验证，继续原批次与原请求编号；不调整用户分辨率，也不让整批长期退回逐步截图。新区域需按当前窗口推断，不能盲目缩放或携带未经核对的搜索/群/转发子布局。弹窗或未知遮挡仍需先解决；发送不确定仍禁止重发。恢复依赖宿主 AI 执行图像复核与后续调用，不是服务器内置视觉推断。

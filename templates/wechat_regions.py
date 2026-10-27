@@ -117,7 +117,16 @@ class Regions:
   result['elapsed_ms']=round((time.perf_counter()-start)*1000,2);result['captures']=self.captures-c0;result['full_frames']=self.full_frames-f0;result['ocr_calls']=self.ocr_calls-o0
   return result
  def fallback(self,error):
-  result=self.capture();result['isError']=True;result['content'].insert(0,{'type':'text','text':json.dumps({'status':'needs_visual_review','reason':str(error),'action':'Inspect this fresh full screenshot. Do not send using the cached layout; recalibrate only from the new image.'},ensure_ascii=False)});return result
+  result=self.capture();reason=str(error)
+  recoverable=('SEND_UNCERTAIN' not in reason and (reason.startswith('layout_changed:') or reason=='needs_calibration'))
+  data={'status':'layout_recalibration_required' if recoverable else 'needs_visual_review','reason':reason,'action':'Inspect this fresh full screenshot. Do not send using the cached layout; recalibrate only from the new image.'}
+  if recoverable:
+   try:data['actual_size']=list(auto.image(result).size)
+   except Exception:data['actual_size']=None
+   try:data['windows']=inventory()['windows']
+   except Exception:data['windows']=None
+   data.update({'next_tool':'calibrate_regions','preserve_user_resolution':True,'instruction':'Recover within this task: inspect this image, derive NEW header/messages/draft/input and search regions from actual window pixels, then call calibrate_regions with explicit layout. Never resize the display back, scale old coordinates blindly, or switch the whole batch to step-by-step screenshots. Verify inspect_regions after calibration, then continue the original workflow with unchanged operation_ids. Popup/obscured/ambiguous layout must be resolved before calibration. Do not include stale search/group/forward sub-layouts: recalibrate each from pixels before using it. Already submitted/uncertain messages are observe-only.'})
+  result['isError']=True;result['content'].insert(0,{'type':'text','text':json.dumps(data,ensure_ascii=False)});return result
  def run(self,name,args):
   try:
    if name=='calibrate_regions':

@@ -9,6 +9,18 @@ description: 在本机独立无头桌面中通过 wbox-wechat MCP 操作微信�
 - `niri-computer-use` MCP 操作用户当前主桌面。使用前读取 `~/.agents/skills/niri-computer-use/SKILL.md`；按技能持有租约，一次一个动作，结束释放并恢复焦点。它不用于后台微信的内部操作。
 - `/wechat login`、`/wechat start` 是 Pi 的聊天桥接，不能代替个人微信任意好友发送，也不应为后台界面操作而启动或接管它。
 
+## 默认快速流程与布局恢复
+
+普通联系人短文字优先 `search_contacts_workflow`（搜索备注/不可见联系人）或 `send_contacts_workflow`（可见最近联系人），已打开正确聊天用 `send_partitioned_to_contact`。正常不为每个点击额外请求整屏。两阶段 `paste_and_capture`/`send_prepared` 仅为复杂内容或无法使用自动流程时的后备，不能因为一次尺寸变化让整批一直降级。
+
+`layout_recalibration_required` / `workflow_awaiting_calibration` 是当前任务内的恢复交接，不是最终失败：
+
+1. 读取返回的新整屏、actual_size 和窗口信息，保留用户当前分辨率，不改回旧尺寸。确认无弹窗/遮挡，按实际窗口像素确定新的 size、header、messages、draft、input；需要搜索则同时按图确定完整 layout.search。窗口尺寸改变可能使布局重排，不能简单等比缩放旧坐标。
+2. 调用 `calibrate_regions {layout:新布局}`，再调用 `inspect_regions` 确认恢复。旧的 search/group_header/forward 子布局没有从新图复核时不得照搬；先做当前任务需要的校准，其他功能稍后单独校准。不调用无参数校准来掩盖布局错误。
+3. 按返回 resume_tool 调用 pending_messages，保留原 recipient/text/operation_id；不重发 completed，不换编号重试 SEND_UNCERTAIN。如果在初始 inspect_regions 发现变化，校准后按用户原任务进入快速 workflow。只有当前界面确实无法确认时才停下询问，不因已有授权再次要确认。
+
+恢复过程中因布局重绘或出现菜单，先按新图处理再校准；未知遮挡不能标定为正常布局。每次校准仅恢复工具，不会自行发消息。看图校准由当前 Codex/Pi 模型完成，MCP 不另调用视觉 API。
+
 ## 可选元素清单试验
 
 `inspect_ui_elements` 是可选只读试验，返回当前 frame 的文字、bounds、center、置信度和来源；正常不附图。现有快速发送/搜索默认继续原工具。需要更多界面文字位置时可读取清单，不能把 ID/坐标长期缓存。reviewed_layout 只提供已校准位置，不证明控件当前内容、焦点或草稿为空；未知图标不猜测。低置信或弹窗按返回截图重新观察，接收人及发送核对仍由原工具执行。`elements.disabled` 标志可关闭试验；不能为了让试验成功而重校准未知遮挡。
@@ -78,9 +90,9 @@ recipient 必须是截图中完整精确标题，不能为绕过失败改成 OCR
 
 当前布局校准保存在 `~/.config/wbox-mcp/wechat/auto-layout.json`，窗口尺寸或位置改变会拒绝。仅在根据新截图重新校准后恢复，不能盲目套用旧坐标。
 
-## 快速发送（优先使用）
+## 两阶段发送（后备）
 
-若工具列表含 `paste_and_capture` 和 `send_prepared`，已通过当前截图确认接收者、输入框为空时，优先使用两阶段快捷工具，避免把点击、写剪贴板、粘贴、截图拆成多次模型往返。
+若工具列表含 `paste_and_capture` 和 `send_prepared`，需要后备流程且已通过当前截图确认接收者、输入框为空时，使用两阶段快捷工具，避免把点击、写剪贴板、粘贴、截图拆成多次模型往返。
 
 - `paste_and_capture` 传入 `text`、输入框内的 `x,y`，以及当前截图中仅包含聊天标题的 `guard_region`（`x,y WxH`）。坐标根据本次截图确定，不套用历史尺寸。工具不会清空已有草稿，也不发送；返回完整截图和 90 秒有效的一次性 token。
 - 读取返回截图，核对接收者和完整草稿后，调用 `send_prepared {token}`。工具会检查窗口及聊天标题图像、回读输入框文字是否与准备文字一致，再发一次 Enter，并返回发送后截图。最后仍须检查气泡、输入框和失败提示。

@@ -122,5 +122,9 @@ def run(regions,args):
     return result
    except Exception as review_error:error=review_error
   result=regions.fallback(error)
+  layout_recovery=str(error).startswith('layout_changed:') or str(error)=='needs_calibration'
+  if layout_recovery and current:
+   result['content'].insert(0,{'type':'text','text':json.dumps({'status':'workflow_awaiting_calibration','completed':completed,'pending_messages':items[items.index(item):],'resume_tool':'search_contacts_workflow' if args.get('_search') else 'send_elements_workflow' if args.get('_elements') else 'send_contacts_workflow','instruction':'Inspect the returned image and recalibrate_regions, verify inspect_regions, then invoke resume_tool with pending_messages and original operation_ids. Do not resend completed items; do not end the task or degrade the whole batch to manual screenshots.'},ensure_ascii=False)})
+   return result
   result['content'].insert(0,{'type':'text','text':json.dumps({'status':'workflow_stopped','completed':completed,'stopped_recipient':current,'stopped_stages':stages,'stopped_elapsed_ms':round((time.perf_counter()-one)*1000,2),'elapsed_ms':round((time.perf_counter()-start)*1000,2),'instruction':'No automatic retries. Inspect error and screenshot; completed messages must not be resent.'},ensure_ascii=False)})
   return result
