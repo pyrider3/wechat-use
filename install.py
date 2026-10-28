@@ -16,6 +16,8 @@ def render(text, home, install, runtime):
 
 def targets(home, prefix):
     return {
+        'session.py': (prefix / 'session.py', True),
+        'session.service': (home / '.config/systemd/user/wbox-wechat-session.service', False),
         'viewer.py': (home / '.local/bin/background-wechat-viewer', True),
         'viewer-server.py': (prefix / 'viewer-server.py', True),
         'manual-guard.py': (prefix / 'manual-guard.py', True),

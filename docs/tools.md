@@ -184,3 +184,7 @@ verify_existing:true 只用于 dry_run：如果历史已有相同内容给相同
 ### 校准与标题识别分流
 
 `title_visual_review_required` 表示布局通过但标题 OCR 不可靠，应看图或沿用原编号进行授权消息的视觉续发，不重校准。`layout_changed_during_recheck` / `layout_changed_during_calibration` 属于布局恢复，校准期间窗口/焦点改变不会保存新基线。空 anchor_regions 拒绝，不能静默变成默认值。快速发送移除入口重复预检，原发送器内部检查和提交前接收人检查保留。
+
+## 按需手动启动
+
+viewer.py 检查独立桌面存活，缺失则启动用户 session 服务并等待，随后连接本地 VNC。session.py 持有与 AI 共用的 action lock，复查存活后仅启动一次；通过直连 MCP 初始化/launch 并保持进程，避免启动者退出导致桌面关闭。已有桌面立即复用不接管。查看器单实例锁与剪贴板隔离保持；关闭查看器不停止 session 服务。服务不启用开机自启、不自动恢复用户主动关闭的桌面。卸载时同时移除 session.py 和 wbox-wechat-session.service。

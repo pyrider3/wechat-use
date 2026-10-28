@@ -1,0 +1,7 @@
+[Unit]
+Description=Persistent isolated WeChat desktop started by its viewer
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 @INSTALL@/session.py
+Restart=no
+TimeoutStopSec=15
