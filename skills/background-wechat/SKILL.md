@@ -21,6 +21,12 @@ description: 在本机独立无头桌面中通过 wbox-wechat MCP 操作微信�
 
 恢复过程中因布局重绘或出现菜单，先按新图处理再校准；未知遮挡不能标定为正常布局。每次校准仅恢复工具，不会自行发消息。看图校准由当前 Codex/Pi 模型完成，MCP 不另调用视觉 API。
 
+## 像素标记变化与遮挡复核
+
+`anchor_review_required` / `workflow_awaiting_anchor_review` 表示窗口几何未变但校验区域变化，不等于分辨率失效。工具已只读等待 120ms 复查一次；收到交接后不要反复 inspect 或直接要求用户重校准。先看返回新图：若菜单/弹窗遮挡，处理任务允许关闭的遮挡后复查；若明确是正常内容/光标覆盖旧标记，保持已经核对的布局，按新图选择 2–6 条静态细分隔线作为 `layout.anchor_regions`，再 calibrate_regions 并 inspect 验证。区域不能重叠 header/messages/draft，不能包含光标、消息、动态按钮或提示。未知遮挡不能作为新基线。
+
+旧版底部 H-72 校验区可能落到高窗口的输入区；只在新图确认正常后更换一次，不能静默丢弃旧校验区。新默认校准移除此底部区且拒绝动态区重叠；自动 OCR 阈值不变。完成复核后用原 resume_tool/pending_messages/operation_id 继续，completed 和 SEND_UNCERTAIN 均不重发。实际尺寸/位置改变仍走布局恢复，不用此方式掩盖变化。
+
 ## 可选元素清单试验
 
 `inspect_ui_elements` 是可选只读试验，返回当前 frame 的文字、bounds、center、置信度和来源；正常不附图。现有快速发送/搜索默认继续原工具。需要更多界面文字位置时可读取清单，不能把 ID/坐标长期缓存。reviewed_layout 只提供已校准位置，不证明控件当前内容、焦点或草稿为空；未知图标不猜测。低置信或弹窗按返回截图重新观察，接收人及发送核对仍由原工具执行。`elements.disabled` 标志可关闭试验；不能为了让试验成功而重校准未知遮挡。

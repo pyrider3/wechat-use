@@ -176,3 +176,7 @@ verify_existing:true 只用于 dry_run：如果历史已有相同内容给相同
 ## 分辨率变化后恢复快速流程
 
 屏幕尺寸或主窗口几何变化会返回 `layout_recalibration_required` 和新截图、actual_size。批次另外返回 `workflow_awaiting_calibration`、completed、pending_messages、resume_tool。当前 AI 按新图提交 `calibrate_regions {layout}`，再用 inspect_regions 验证，继续原批次与原请求编号；不调整用户分辨率，也不让整批长期退回逐步截图。新区域需按当前窗口推断，不能盲目缩放或携带未经核对的搜索/群/转发子布局。弹窗或未知遮挡仍需先解决；发送不确定仍禁止重发。恢复依赖宿主 AI 执行图像复核与后续调用，不是服务器内置视觉推断。
+
+### 减少静态标记误报
+
+新版去掉可能落入高窗口输入区的底部 H-72 标记，支持显式 `layout.anchor_regions`（2–6 条不重叠标题/消息/草稿的静态细分隔区域）。像素变化只读等待 120ms 复查一次，不修改基线、不降低阈值；持续变化返回 anchor_review_required、失败区域和差异。AI 先看图区分菜单遮挡与旧标记混入动态内容：前者处理遮挡，后者看图后更新静态标记。不会把所有变化都当成尺寸失效。旧校准须经过一次视觉复核，不能静默迁移。批次保留待处理条目和原编号。

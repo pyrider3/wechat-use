@@ -35,5 +35,5 @@ class RegionsTests(unittest.TestCase):
    p=self.profile(t);d=json.loads(p.read_text());d['anchors']=[{'region':'1,1 10x10','signature':[255]*960}];p.write_text(json.dumps(d))
    with patch.object(m,'PROFILE',p),patch.object(m,'inventory',return_value=self.inv()):
     r=m.Regions(Proxy());r.im=lambda _:Image.new('RGB',(10,10),'black')
-    with self.assertRaisesRegex(m.LayoutError,'anchor differs'):r.check()
+    with self.assertRaisesRegex(m.LayoutError,'anchor_review_required'):r.check()
 if __name__=='__main__':unittest.main()

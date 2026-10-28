@@ -75,13 +75,20 @@ class Regions:
    if x+w>W or y+h>H:raise ValueError('rectangle outside screen')
   # Stable separators / toolbar areas: never use dynamic conversation pixels as anchors.
   x,y,w,h=rect(layout['draft']);hx,hy,hw,hh=rect(layout['header'])
-  anchors=[f'{hx},{hy+hh+9} {min(W-hx-10,700)}x8',f'{max(0,x-10)},{max(0,y-25)} {min(W-x,680)}x7',f'{x+5},{H-72} {min(360,W-x-10)}x40']
+  # The old H-72 strip could include draft text/caret in tall layouts.
+  # Explicit reviewed strips allow the host to choose actual static separators.
+  anchors=layout.get('anchor_regions') or [f'{hx},{hy+hh+9} {min(W-hx-10,700)}x8',f'{max(0,x-10)},{max(0,y-25)} {min(W-x,680)}x7']
+  if not isinstance(anchors,list) or not 2<=len(anchors)<=6 or any(not isinstance(a,str) for a in anchors) or len(set(anchors))!=len(anchors):raise ValueError('need 2-6 reviewed static anchor strips')
   ref=[]
   for region in anchors:
    rx,ry,rw,rh=rect(region)
    if rx+rw>W or ry+rh>H:raise ValueError('anchor outside screen')
+   for content in ('header','messages','draft'):
+    cx,cy,cw,ch=rect(layout[content])
+    if rx<cx+cw and cx<rx+rw and ry<cy+ch and cy<ry+rh:raise ValueError('anchor overlaps dynamic '+content)
+   if rh>12 and rw>12:raise ValueError('anchors must be narrow static strips')
    ref.append({'region':region,'signature':signature(im.crop((rx,ry,rx+rw,ry+rh)))})
-  profile={'layout':layout,'anchors':ref,'geometry':{k:inv['windows'][0][k] for k in ['x','y','width','height']},'created':time.time()}
+  profile={'layout':layout,'anchors':ref,'geometry':{k:inv['windows'][0][k] for k in ['x','y','width','height']},'created':time.time(),'anchor_version':2}
   PROFILE.parent.mkdir(parents=True,exist_ok=True);tmp=PROFILE.with_suffix('.tmp');tmp.write_text(json.dumps(profile));tmp.chmod(0o600);os.replace(tmp,PROFILE)
   # Explicitly reviewed calibration is shared with both automatic send paths.
   layout_tmp=auto.LAYOUT.with_suffix('.tmp');layout_tmp.write_text(json.dumps(layout));layout_tmp.chmod(0o600);os.replace(layout_tmp,auto.LAYOUT)
@@ -93,8 +100,17 @@ class Regions:
   if inv['size']!=self.layout['size']:raise LayoutError('layout_changed: screen size differs')
   if len(inv['windows'])!=1 or inv['windows'][0]['override_redirect']:raise LayoutError('popup_or_extra_window')
   if {k:inv['windows'][0][k] for k in profile['geometry']}!=profile['geometry']:raise LayoutError('layout_changed: window moved or resized')
-  for anchor in profile['anchors']:
-   if distance(signature(self.im(anchor['region'])),anchor['signature'])>3.0:raise LayoutError('layout_changed_or_overlay: stable anchor differs')
+  failed=[]
+  for index,anchor in enumerate(profile['anchors']):
+   delta=distance(signature(self.im(anchor['region'])),anchor['signature'])
+   if delta>3.0:failed.append({'index':index,'region':anchor['region'],'difference':round(delta,2)})
+  if failed:
+   # One observation-only retry handles compositor repaint. Never update baselines.
+   time.sleep(.12);fresh=inventory();self.proxy.focus()
+   if fresh['size']!=inv['size'] or fresh['windows']!=inv['windows']:raise LayoutError('layout_changed_during_recheck: inspect fresh screenshot')
+   failed=[{**a,'difference':round(distance(signature(self.im(a['region'])),profile['anchors'][a['index']]['signature']),2)} for a in failed]
+   failed=[a for a in failed if a['difference']>3.0]
+   if failed:raise LayoutError('anchor_review_required: '+json.dumps({'failed':failed,'anchor_version':profile.get('anchor_version',1)}))
   return self.layout
  def header(self):return self.recognize(self.im(self.layout['header']))
  def inspect(self,contacts=False):
@@ -120,6 +136,8 @@ class Regions:
   result=self.capture();reason=str(error)
   recoverable=('SEND_UNCERTAIN' not in reason and (reason.startswith('layout_changed:') or reason=='needs_calibration'))
   data={'status':'layout_recalibration_required' if recoverable else 'needs_visual_review','reason':reason,'action':'Inspect this fresh full screenshot. Do not send using the cached layout; recalibrate only from the new image.'}
+  if reason.startswith('anchor_review_required:'):
+   data.update({'status':'anchor_review_required','instruction':'Inspect the returned fresh image. Geometry has not changed: do NOT automatically recalibrate or repeat the same check. If a menu/dialog obscures the window, dismiss only task-appropriate overlays then check once. If the image proves normal content/caret overlaps a failed anchor, call calibrate_regions with the existing verified layout plus 2-6 visually reviewed anchor_regions on static narrow separators OUTSIDE header/messages/draft, then verify inspect_regions and resume original workflow/operation_ids. Never accept an overlay as a new baseline or lower thresholds. Unknown obstruction needs visual resolution, not blind calibration.'})
   if recoverable:
    try:data['actual_size']=list(auto.image(result).size)
    except Exception:data['actual_size']=None
