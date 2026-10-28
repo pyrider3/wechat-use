@@ -61,7 +61,7 @@ class Regions:
    self.cache[key]=(words,confidence)
   return self.cache[key]
  def calibrate(self,layout=None):
-  inv=inventory();self.proxy.focus()
+  inv=inventory();focus=self.proxy.focus()
   if len(inv['windows'])!=1 or inv['windows'][0]['override_redirect']:raise LayoutError('popup_or_extra_window')
   if layout is None and not auto.LAYOUT.exists():raise LayoutError('needs_layout: infer regions from the fresh full screenshot and pass layout to calibrate_regions')
   layout=layout or json.loads(auto.LAYOUT.read_text())
@@ -77,7 +77,7 @@ class Regions:
   x,y,w,h=rect(layout['draft']);hx,hy,hw,hh=rect(layout['header'])
   # The old H-72 strip could include draft text/caret in tall layouts.
   # Explicit reviewed strips allow the host to choose actual static separators.
-  anchors=layout.get('anchor_regions') or [f'{hx},{hy+hh+9} {min(W-hx-10,700)}x8',f'{max(0,x-10)},{max(0,y-25)} {min(W-x,680)}x7']
+  anchors=layout.get('anchor_regions', [f'{hx},{hy+hh+9} {min(W-hx-10,700)}x8',f'{max(0,x-10)},{max(0,y-25)} {min(W-x,680)}x7'])
   if not isinstance(anchors,list) or not 2<=len(anchors)<=6 or any(not isinstance(a,str) for a in anchors) or len(set(anchors))!=len(anchors):raise ValueError('need 2-6 reviewed static anchor strips')
   ref=[]
   for region in anchors:
@@ -88,6 +88,7 @@ class Regions:
     if rx<cx+cw and cx<rx+rw and ry<cy+ch and cy<ry+rh:raise ValueError('anchor overlaps dynamic '+content)
    if rh>12 and rw>12:raise ValueError('anchors must be narrow static strips')
    ref.append({'region':region,'signature':signature(im.crop((rx,ry,rx+rw,ry+rh)))})
+  if inventory()!=inv or self.proxy.focus()!=focus:raise LayoutError('layout_changed_during_calibration: inspect fresh screenshot; nothing saved')
   profile={'layout':layout,'anchors':ref,'geometry':{k:inv['windows'][0][k] for k in ['x','y','width','height']},'created':time.time(),'anchor_version':2}
   PROFILE.parent.mkdir(parents=True,exist_ok=True);tmp=PROFILE.with_suffix('.tmp');tmp.write_text(json.dumps(profile));tmp.chmod(0o600);os.replace(tmp,PROFILE)
   # Explicitly reviewed calibration is shared with both automatic send paths.
@@ -134,9 +135,14 @@ class Regions:
   return result
  def fallback(self,error):
   result=self.capture();reason=str(error)
-  recoverable=('SEND_UNCERTAIN' not in reason and (reason.startswith('layout_changed:') or reason=='needs_calibration'))
+  recoverable=('SEND_UNCERTAIN' not in reason and (reason.startswith(('layout_changed:','layout_changed_during_recheck:','layout_changed_during_calibration:')) or reason=='needs_calibration'))
   data={'status':'layout_recalibration_required' if recoverable else 'needs_visual_review','reason':reason,'action':'Inspect this fresh full screenshot. Do not send using the cached layout; recalibrate only from the new image.'}
+  if reason=='title_unreadable':
+   data.update({'status':'title_visual_review_required','action':'Layout checks passed; do NOT recalibrate solely because title OCR failed. Inspect this image. For an authorized short contact send, use prepare_visual_contact_send with the original request and visually confirm identity before resume. For read-only/group tasks report only visually established information, never guess.'})
+  if reason.startswith('popup_or_extra_window'):
+   data['action']='Inspect and resolve the task-relevant popup first, then check once. Do not recalibrate while obscured.'
   if reason.startswith('anchor_review_required:'):
+   data['action']='Inspect the changed anchor and distinguish obstruction from normal content. Do not blindly recalibrate.'
    data.update({'status':'anchor_review_required','instruction':'Inspect the returned fresh image. Geometry has not changed: do NOT automatically recalibrate or repeat the same check. If a menu/dialog obscures the window, dismiss only task-appropriate overlays then check once. If the image proves normal content/caret overlaps a failed anchor, call calibrate_regions with the existing verified layout plus 2-6 visually reviewed anchor_regions on static narrow separators OUTSIDE header/messages/draft, then verify inspect_regions and resume original workflow/operation_ids. Never accept an overlay as a new baseline or lower thresholds. Unknown obstruction needs visual resolution, not blind calibration.'})
   if recoverable:
    try:data['actual_size']=list(auto.image(result).size)
@@ -151,7 +157,6 @@ class Regions:
     frame=self.calibrate(args.get('layout'));frame['content'].insert(0,{'type':'text','text':'Layout calibrated from a fresh full frame. Confirm these regions before automatic actions.'});return frame
    if name=='inspect_regions':return {'content':[{'type':'text','text':json.dumps(self.inspect(args.get('contacts',False)),ensure_ascii=False)}]}
    if not PROFILE.exists():raise LayoutError('needs_calibration')
-   self.check()
    return auto.send(self.proxy,args,regions=self,recipient=args.get("recipient","") if name=="send_partitioned_to_contact" else "文件传输助手")
   except Exception as error:
    from wechat_visual import eligible,prepare

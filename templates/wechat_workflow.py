@@ -122,7 +122,7 @@ def run(regions,args):
     return result
    except Exception as review_error:error=review_error
   result=regions.fallback(error)
-  layout_recovery=str(error).startswith(('layout_changed:','anchor_review_required:')) or str(error)=='needs_calibration'
+  layout_recovery=str(error).startswith(('layout_changed:','layout_changed_during_recheck:','layout_changed_during_calibration:','anchor_review_required:')) or str(error)=='needs_calibration'
   if layout_recovery and current:
    result['content'].insert(0,{'type':'text','text':json.dumps({'status':'workflow_awaiting_anchor_review' if str(error).startswith('anchor_review_required:') else 'workflow_awaiting_calibration','completed':completed,'pending_messages':items[items.index(item):],'resume_tool':'search_contacts_workflow' if args.get('_search') else 'send_elements_workflow' if args.get('_elements') else 'send_contacts_workflow','instruction':'Follow the returned image-review instructions (resolve overlays before any calibration), verify inspect_regions, then invoke resume_tool with pending_messages and original operation_ids. Do not resend completed items; do not end the task or degrade the whole batch to manual screenshots.'},ensure_ascii=False)})
    return result
