@@ -25,7 +25,7 @@
 ```bash
 sudo pacman -S git uv labwc grim xorg-server-xwayland xdotool \
   xorg-xprop xorg-setxkbmap wlr-randr xclip wl-clipboard wayvnc \
-  tigervnc python-gobject gtk3 gtk-vnc bubblewrap dbus libnotify tesseract libpulse
+  tigervnc bubblewrap dbus libnotify tesseract libpulse
 ```
 
 需要用户级 systemd、可用的 PipeWire/PulseAudio、libX11，以及官方微信位于 `/opt/wechat/wechat`。安装器不安装系统包、不下载微信、不自动登录。
@@ -176,8 +176,6 @@ pi mcp remove wbox-wechat    # 如已注册
 
 手动冷启动会话由用户服务保持，可在确需退出时自行执行 `systemctl --user stop wbox-wechat-session.service`，这会停止它所启动的独立桌面。正常查看不需要此命令。启动失败可查看 `journalctl --user -u wbox-wechat-session.service`。
 
-## 查看器自动缩放
+## 查看器与显示器缩放
 
-新版使用原生 Wayland GTK-VNC 查看器，画面等比例适应窗口，GTK 随所在显示器采用桌面缩放。查看器窗口变大、变小或移动到其他显示器，不会向后台发送改分辨率请求；WayVNC 同时启用 `--disable-resizing`。后台保持自己的固定分辨率和微信缩放，减少校准失效。主桌面/后台剪贴板仍不互通。运行时状态（是否连接、窗口大小、后端尺寸、GTK 缩放）保存在 `$XDG_RUNTIME_DIR/wbox-wechat-viewer-status.json`，不记录画面、密码或聊天。
-
-依赖系统 Python 的 PyGObject、GTK 3 和 GTK-VNC 2.0（Arch 包：python-gobject、gtk3、gtk-vnc）。保留现有本地密码认证，不启用免密。此版本锁定与旧查看器一致的 VNC 密码认证，避开本机 neatvnc 的 ARD 握手崩溃。
+按用户偏好使用原 TigerVNC 查看器，一键启动保持不变；`RemoteResize=1` 允许后台分辨率随查看窗口变化，服务端不锁定分辨率。使用全彩 ZRLE 无损编码，避免把固定的小画面平滑拉大。查看器自身沿用系统/XWayland 的显示缩放，不另写 GTK 缩放或强制 DPI。窗口/显示尺寸变化仍可能需要后台校准恢复流程；不能同时承诺动态分辨率与永久免校准。
