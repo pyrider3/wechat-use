@@ -25,7 +25,7 @@
 ```bash
 sudo pacman -S git uv labwc grim xorg-server-xwayland xdotool \
   xorg-xprop xorg-setxkbmap wlr-randr xclip wl-clipboard wayvnc \
-  tigervnc bubblewrap dbus libnotify tesseract libpulse
+  tigervnc python-gobject gtk3 gtk-vnc bubblewrap dbus libnotify tesseract libpulse
 ```
 
 需要用户级 systemd、可用的 PipeWire/PulseAudio、libX11，以及官方微信位于 `/opt/wechat/wechat`。安装器不安装系统包、不下载微信、不自动登录。
@@ -175,3 +175,9 @@ pi mcp remove wbox-wechat    # 如已注册
 应用菜单搜索并点击“后台微信”，无需先找 AI：独立桌面已运行时直接打开查看器；未运行时按需启动 `wbox-wechat-session.service` 再显示。登录过期在查看器中自行扫码。关闭查看器只断开显示，不退出微信；再次打开仍是同一会话。重复点击不会启动多个查看器。此服务不设开机自动启动，不接管已经由其他 MCP 持有的会话；该类旧会话生命周期仍由原持有进程决定。
 
 手动冷启动会话由用户服务保持，可在确需退出时自行执行 `systemctl --user stop wbox-wechat-session.service`，这会停止它所启动的独立桌面。正常查看不需要此命令。启动失败可查看 `journalctl --user -u wbox-wechat-session.service`。
+
+## 查看器自动缩放
+
+新版使用原生 Wayland GTK-VNC 查看器，画面等比例适应窗口，GTK 随所在显示器采用桌面缩放。查看器窗口变大、变小或移动到其他显示器，不会向后台发送改分辨率请求；WayVNC 同时启用 `--disable-resizing`。后台保持自己的固定分辨率和微信缩放，减少校准失效。主桌面/后台剪贴板仍不互通。运行时状态（是否连接、窗口大小、后端尺寸、GTK 缩放）保存在 `$XDG_RUNTIME_DIR/wbox-wechat-viewer-status.json`，不记录画面、密码或聊天。
+
+依赖系统 Python 的 PyGObject、GTK 3 和 GTK-VNC 2.0（Arch 包：python-gobject、gtk3、gtk-vnc）。保留现有本地密码认证，不启用免密。此版本锁定与旧查看器一致的 VNC 密码认证，避开本机 neatvnc 的 ARD 握手崩溃。

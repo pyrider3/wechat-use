@@ -29,8 +29,10 @@ def main():
   marker.write_text(str(os.getpid()))
   try:
    env=os.environ.copy()
-   env['LD_LIBRARY_PATH']='@INSTALL@/runtime/usr/lib'
-   subprocess.run([shutil.which('vncviewer') or '@INSTALL@/runtime/usr/bin/vncviewer','-SecurityTypes','VncAuth','-PasswordFile','@HOME@/.config/wbox-mcp/viewer/passwd','-RemoteResize=1','-AcceptClipboard=0','-SendClipboard=0','-SendPrimary=0','-SetPrimary=0','127.0.0.1::15927'],env=env)
+   # Native per-monitor scaling; do not inherit a forced toolkit scale.
+   for key in ('LD_LIBRARY_PATH','GDK_SCALE','GDK_DPI_SCALE'):env.pop(key,None)
+   env['GDK_BACKEND']='wayland'
+   subprocess.run(['/usr/bin/python3','@INSTALL@/scaled-viewer.py'],env=env,check=True)
   finally:marker.unlink(missing_ok=True)
 
 if __name__=='__main__':main()

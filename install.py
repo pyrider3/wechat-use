@@ -18,6 +18,7 @@ def targets(home, prefix):
     return {
         'session.py': (prefix / 'session.py', True),
         'session.service': (home / '.config/systemd/user/wbox-wechat-session.service', False),
+        'scaled-viewer.py': (prefix / 'scaled-viewer.py', True),
         'viewer.py': (home / '.local/bin/background-wechat-viewer', True),
         'viewer-server.py': (prefix / 'viewer-server.py', True),
         'manual-guard.py': (prefix / 'manual-guard.py', True),
@@ -69,6 +70,11 @@ def main():
     for path in (home, prefix, runtime):
         if any(c in str(path) for c in ' \t\n\r\"\'`$\\'):
             ap.error('Paths containing whitespace or shell metacharacters are unsupported')
+    try:
+        subprocess.run(['/usr/bin/python3','-c',"import gi; gi.require_version('Gtk','3.0'); gi.require_version('GtkVnc','2.0'); gi.require_version('GVnc','1.0')"],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    except (OSError, subprocess.CalledProcessError):
+        print('Missing viewer prerequisites: python-gobject, gtk3, gtk-vnc')
+        return 1
     required = ['git', 'uv', 'labwc', 'grim', 'Xwayland', 'xdotool', 'xprop', 'setxkbmap', 'wlr-randr', 'xclip', 'wl-copy', 'wayvnc', 'vncviewer', 'vncpasswd', 'bwrap', 'dbus-run-session', 'systemctl', 'pactl', 'notify-send', 'tesseract']
     missing = [x for x in required if not shutil.which(x)]
     if not ctypes.util.find_library('X11'):
