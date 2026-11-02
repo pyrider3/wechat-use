@@ -1,7 +1,7 @@
 """Calibrated local-contact search. Never selects group/network search entries."""
 import json,time,unicodedata
 import auto_file_helper as auto
-from wechat_regions import inventory
+from wechat_regions import inventory, LayoutError
 
 def exact(s):return unicodedata.normalize('NFC',s)
 def region(box):return f'{box[0]},{box[1]} {box[2]}x{box[3]}'
@@ -21,17 +21,42 @@ def popup_check(regions,layout,profile):
   if w['override_redirect'] or any(w[k]!=g[k] for k in ('x','y','width')) or not 50<=w['height']<=g['max_height']:raise ValueError('search_unexpected_popup')
  return bool(others)
 
+def checked_layout(regions):
+ # A previous search may leave its known results window open. Never relax the
+ # general layout guard: prove this specific popup before dismissing it once.
+ try:return regions.check()
+ except LayoutError as error:
+  if str(error)!='popup_or_extra_window':raise
+  from wechat_regions import PROFILE
+  profile=json.loads(PROFILE.read_text());layout=profile['layout']
+  if not layout.get('search'):raise error
+  if not popup_check(regions,layout,profile):raise error
+  s=layout['search'];heading,c=auto.ocr(regions.im(region(s['heading'])),7)
+  if auto.norm(heading)!='联系人' or c<85:raise ValueError('search_unverified_existing_popup')
+  regions.proxy.call('key',{'shortcut':'Escape'})
+  # The compositor may unmap the popup a frame after Escape. Observe only,
+  # with a deadline; never dispatch another key or suppress other failures.
+  deadline=time.monotonic()+.8
+  while True:
+   try:return regions.check()
+   except LayoutError as pending:
+    if str(pending)!='popup_or_extra_window' or time.monotonic()>=deadline:raise
+    time.sleep(.04)
+
 def read_contacts(regions,layout,frame=None):
- s=layout['search'];px,py,_,_=s['panel'];frame=frame if frame is not None else regions.im(region(s['panel']))
+ s=layout['search'];px,py,pw,ph=s['panel'];frame=frame if frame is not None else regions.im(region(s['panel']))
+ if frame.size!=(pw,ph):raise ValueError('search_frame_size_mismatch')
  def crop(box):
-  x,y,w,h=box;return frame.crop((x-px,y-py,x-px+w,y-py+h))
+  x,y,w,h=box
+  if w<1 or h<1 or x<px or y<py or x+w>px+pw or y+h>py+ph:raise ValueError('search_crop_outside_panel: review calibration')
+  return frame.crop((x-px,y-py,x-px+w,y-py+h))
  heading,conf=auto.ocr(crop(s['heading']),7)
  if auto.norm(heading)!='联系人' or conf<85:raise ValueError('search_no_local_contacts')
  rows=[]
  for index in range(s['max_rows']):
   top=s['row_top']+index*s['row_height']
   # A new section starts at a row boundary. Verify its actual label, not its position.
-  label,lc=auto.ocr(crop([s['heading'][0],top+8,s['heading'][2],45]),7)
+  label,lc=auto.ocr(crop([s['heading'][0],top+s.get('boundary_offset',-12),s['heading'][2],s.get('boundary_height',65)]),7)
   if auto.norm(label) in {'群聊','更多','公众号','聊天记录','搜索网络结果'} and lc>=80:
    if not rows:raise ValueError('search_empty_contacts')
    return rows
@@ -47,7 +72,7 @@ def unique_local(rows,recipient):
 
 def select(regions,recipient):
  if not isinstance(recipient,str) or not recipient.strip() or len(recipient)>80 or any(ord(c)<32 for c in recipient):raise ValueError('invalid recipient')
- start=time.perf_counter();layout=regions.check();s=layout.get('search')
+ start=time.perf_counter();layout=checked_layout(regions);s=layout.get('search')
  if not s:raise ValueError('needs_search_calibration')
  from wechat_regions import PROFILE
  profile=json.loads(PROFILE.read_text())

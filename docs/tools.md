@@ -188,3 +188,6 @@ verify_existing:true 只用于 dry_run：如果历史已有相同内容给相同
 ## 按需手动启动
 
 viewer.py 检查独立桌面存活，缺失则启动用户 session 服务并等待，随后连接本地 VNC。session.py 持有与 AI 共用的 action lock，复查存活后仅启动一次；通过直连 MCP 初始化/launch 并保持进程，避免启动者退出导致桌面关闭。已有桌面立即复用不接管。查看器单实例锁与剪贴板隔离保持；关闭查看器不停止 session 服务。服务不启用开机自启、不自动恢复用户主动关闭的桌面。卸载时同时移除 session.py 和 wbox-wechat-session.service。
+
+
+搜索恢复：search_open_contact 与 search_contacts_workflow 现在能关闭并重新验证已经留在屏幕上的已校准联系人搜索面板。只接受唯一、几何匹配且“联系人”标题置信度至少85的结果窗口；未知弹窗仍交给AI看图。搜索面板截图尺寸或裁切越界会明确拒绝，需按新图校准；不调整接收人门槛和防重发规则。
