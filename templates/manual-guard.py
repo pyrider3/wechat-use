@@ -31,7 +31,7 @@ OBSERVE.add('inspect_regions')
 class Proxy:
  def __init__(self,command):
   self.p=subprocess.Popen(command,stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,bufsize=1)
-  self.counter=0;self.pending={};self.lock=threading.Lock();self.output=threading.Lock();self.tokens={}
+  self.counter=0;self.pending={};self.lock=threading.Lock();self.output=threading.Lock();self.tokens={};self.ready=False
   threading.Thread(target=self.reader,daemon=True).start()
  def emit(self,r):
   with self.output:print(json.dumps(r,ensure_ascii=False),flush=True)
@@ -148,7 +148,21 @@ class Proxy:
   except Exception as e:raise RuntimeError('SEND_UNCERTAIN: Enter already dispatched, do not retry; '+str(e))
   r['content'].insert(0,{'type':'text','text':'Enter dispatched once. Inspect the message bubble, input field and any failure indicator; this is not an automatic delivery confirmation.'})
   return r
+ def envelope(self,req):
+  # 2026-07-28 clients stamp every request with io.modelcontextprotocol/* keys in params._meta; upstream is always driven with the legacy handshake.
+  params=req.get('params');meta=params.get('_meta') if isinstance(params,dict) else None
+  if not isinstance(meta,dict) or not any(k.startswith('io.modelcontextprotocol/') for k in meta):return False
+  rest={k:v for k,v in meta.items() if not k.startswith('io.modelcontextprotocol/')}
+  params=dict(params);params.pop('_meta')
+  if rest:params['_meta']=rest
+  req['params']=params
+  if not self.ready:
+   self.rpc('initialize',{'protocolVersion':'2025-11-25','capabilities':{},'clientInfo':{'name':'manual-guard','version':'1'}})
+   self.p.stdin.write(json.dumps({'jsonrpc':'2.0','method':'notifications/initialized'})+'\n');self.p.stdin.flush();self.ready=True
+  return True
  def handle(self,req):
+  modern=self.envelope(req)
+  if req.get('method')=='initialize':self.ready=True
   method=req.get('method');params=req.get('params',{});name=params.get('name')
   if 'id' not in req:
    self.p.stdin.write(json.dumps(req)+'\n');self.p.stdin.flush();return
@@ -168,6 +182,7 @@ class Proxy:
    path=pathlib.Path.home()/'.local/state/wbox-wechat/timings.jsonl';path.parent.mkdir(parents=True,exist_ok=True)
    with path.open('a') as f:f.write(json.dumps({'tool':name,'elapsed_ms':round((time.perf_counter()-started)*1000,2),'error':bool(response['result'].get('isError'))})+'\n')
    path.chmod(0o600)
+  if modern:response['result'].setdefault('resultType','complete')
   self.emit(response)
  def close(self):
   self.p.stdin.close()
