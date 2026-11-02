@@ -95,10 +95,36 @@ class Regions:
   layout_tmp=auto.LAYOUT.with_suffix('.tmp');layout_tmp.write_text(json.dumps(layout));layout_tmp.chmod(0o600);os.replace(layout_tmp,auto.LAYOUT)
   self.cache={}
   return full
+ def window_titles(self):
+  r=self.proxy.call('list_windows',{});return json.loads(next(c['text'] for c in r['content'] if c['type']=='text'))['windows']
+ def dismiss_chat_popout(self,inv,profile):
+  # Clicking a conversation can leave a detached chat window behind the main one. Close it only when it is provably that: one ordinary, smaller,
+  # on-screen window whose title is read back from its own header. Anything else keeps the popup guard. Only runs while holding the action lock.
+  main=[w for w in inv['windows'] if all(w[k]==v for k,v in profile['geometry'].items())]
+  if len(main)!=1:return inv
+  m=main[0];o=next(w for w in inv['windows'] if w['id']!=m['id']);W,H=inv['size']
+  if o['override_redirect'] or not(400<=o['width']<m['width'] and 400<=o['height']<m['height']) or o['x']<0 or o['y']<0 or o['x']+o['width']>W or o['y']+o['height']>H:return inv
+  titles=self.window_titles()
+  if len(titles)!=2 or any(w.get('app_id')!='wechat' for w in titles):return inv
+  names=[w['title'] for w in titles if w['title']!='\u5fae\u4fe1']
+  if len(names)!=1 or not names[0]:return inv
+  if not any(w['title']==names[0] and w.get('activated') for w in titles):
+   self.proxy.call('key',{'shortcut':'alt+Tab'});time.sleep(.5)
+   if not any(w['title']==names[0] and w.get('activated') for w in self.window_titles()):raise LayoutError('popup_or_extra_window')
+  text,confidence=self.recognize(self.im(f"{o['x']+20},{o['y']+70} 500x50"))
+  if auto.norm(text)!=auto.norm(names[0]) or confidence<80:raise LayoutError('popup_or_extra_window')
+  x,y=o['x']+o['width']-40,o['y']+30
+  for _ in range(2):
+   if o['id'] not in [w['id'] for w in inventory()['windows']]:break
+   self.proxy.call('mouse_move',{'x':x,'y':y});time.sleep(.15);self.proxy.call('click',{'x':x,'y':y});time.sleep(.9)
+  fresh=inventory()
+  if len(fresh['windows'])!=1:raise LayoutError('popup_or_extra_window')
+  self.proxy.focus();return fresh
  def check(self):
   if not PROFILE.exists():raise LayoutError('needs_calibration')
   profile=json.loads(PROFILE.read_text());self.layout=profile['layout'];inv=inventory();self.proxy.focus()
   if inv['size']!=self.layout['size']:raise LayoutError('layout_changed: screen size differs')
+  if len(inv['windows'])==2 and getattr(self.proxy,'acting',False):inv=self.dismiss_chat_popout(inv,profile)
   if len(inv['windows'])!=1 or inv['windows'][0]['override_redirect']:raise LayoutError('popup_or_extra_window')
   if {k:inv['windows'][0][k] for k in profile['geometry']}!=profile['geometry']:raise LayoutError('layout_changed: window moved or resized')
   failed=[]

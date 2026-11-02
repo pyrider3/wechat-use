@@ -172,7 +172,9 @@ class Proxy:
     with (RUNTIME/'wbox-wechat-action.lock').open('a') as action:
      try:fcntl.flock(action,fcntl.LOCK_EX|fcntl.LOCK_NB)
      except BlockingIOError:raise RuntimeError('automation_busy: another agent is executing an action')
-     result=self.fast(name,params.get('arguments',{})) if name in {'paste_and_capture','send_prepared','send_to_file_helper','send_to_contact','calibrate_regions','send_partitioned_to_file_helper','send_partitioned_to_contact','send_contacts_workflow','search_contacts_workflow','search_open_contact','inspect_ui_elements','send_elements_workflow','group_member_counts','forward_latest_two','prepare_visual_contact_send','resume_visual_contact_send'} else self.rpc(method,params)
+     self.acting=True
+     try:result=self.fast(name,params.get('arguments',{})) if name in {'paste_and_capture','send_prepared','send_to_file_helper','send_to_contact','calibrate_regions','send_partitioned_to_file_helper','send_partitioned_to_contact','send_contacts_workflow','search_contacts_workflow','search_open_contact','inspect_ui_elements','send_elements_workflow','group_member_counts','forward_latest_two','prepare_visual_contact_send','resume_visual_contact_send'} else self.rpc(method,params)
+     finally:self.acting=False
    else:
     result=self.fast(name,params.get('arguments',{})) if method=='tools/call' and name=='inspect_regions' else self.rpc(method,params)
     if method=='tools/list':result['tools'].extend(t for t in EXTRA if t['name'] not in {'inspect_ui_elements','send_elements_workflow'} or not ELEMENTS_DISABLED.exists())
